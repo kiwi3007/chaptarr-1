@@ -156,28 +156,20 @@ namespace NzbDrone.Core.Organizer
             // Multi-part audiobooks often arrive as many separate audio files (mp3 chapters/tracks).
             // If the naming pattern doesn't include any per-file disambiguator (PartNumber / Original Filename),
             // all tracks would be renamed to the same destination and only the first one would import.
+            // The same goes for the parts of a split release ("Part 1 of 2", "Part 2 of 2") when the
+            // pattern has no ReleasePart token: each part is its own download of the same book.
             // Default to preserving the original filename for the final path component in that case.
-            if (bookFile.PartCount > 1 &&
-                !pattern.Contains("PartNumber", StringComparison.InvariantCultureIgnoreCase) &&
+            var tracksNeedDisambiguator = bookFile.PartCount > 1 &&
+                                          !pattern.Contains("PartNumber", StringComparison.InvariantCultureIgnoreCase);
+            var releasePartsNeedDisambiguator = bookFile.ReleasePart > 0 &&
+                                                !pattern.Contains("ReleasePart", StringComparison.InvariantCultureIgnoreCase);
+
+            if ((tracksNeedDisambiguator || releasePartsNeedDisambiguator) &&
                 !pattern.Contains("Original Filename", StringComparison.InvariantCultureIgnoreCase) &&
                 !pattern.Contains("Original Title", StringComparison.InvariantCultureIgnoreCase) &&
                 components.Count > 0)
             {
                 components[^1] = CleanFileName(originalFileName, namingConfig);
-            }
-            else if (bookFile.ReleasePart > 0 &&
-                     !pattern.Contains("ReleasePart", StringComparison.InvariantCultureIgnoreCase) &&
-                     !pattern.Contains("Original Filename", StringComparison.InvariantCultureIgnoreCase) &&
-                     !pattern.Contains("Original Title", StringComparison.InvariantCultureIgnoreCase) &&
-                     components.Count > 0)
-            {
-                // Each part of a split release ("Part 1 of 2", "Part 2 of 2") is its own download but
-                // names the same book, so without a disambiguator every part maps to one file name
-                // and the second part cannot be imported next to the first.
-                var label = bookFile.ReleasePartCount > 0
-                    ? $"Part {bookFile.ReleasePart} of {bookFile.ReleasePartCount}"
-                    : $"Part {bookFile.ReleasePart}";
-                components[^1] = CleanFileName($"{components[^1]} ({label})", namingConfig);
             }
 
             return Path.Combine(components.ToArray());

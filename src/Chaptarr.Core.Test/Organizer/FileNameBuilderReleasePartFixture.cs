@@ -124,17 +124,18 @@ namespace Chaptarr.Core.Test.Organizer
         }
 
         [Test]
-        public void should_give_each_part_its_own_name_when_format_has_no_release_part_token()
+        public void should_keep_original_file_names_when_format_has_no_release_part_token()
         {
-            var part1 = Build("{Book Title}/{Book Title}{ (PartNumber:smart)}", File(1, 2));
-            var part2 = Build("{Book Title}/{Book Title}{ (PartNumber:smart)}", File(2, 2));
+            var format = "{Book Title}/{Book Title}{ (PartNumber:smart)}";
+            var part1 = Build(format, File(1, 2, path: "/downloads/Fourth Wing - GraphicAudio - Part 1.m4b"));
+            var part2 = Build(format, File(2, 2, path: "/downloads/Fourth Wing - GraphicAudio - Part 2.m4b"));
 
-            Assert.That(part1, Is.EqualTo(Path.Combine("Iron Flame", "Iron Flame (Part 1 of 2)")));
-            Assert.That(part2, Is.EqualTo(Path.Combine("Iron Flame", "Iron Flame (Part 2 of 2)")));
+            Assert.That(part1, Is.EqualTo(Path.Combine("Iron Flame", "Fourth Wing - GraphicAudio - Part 1")));
+            Assert.That(part2, Is.EqualTo(Path.Combine("Iron Flame", "Fourth Wing - GraphicAudio - Part 2")));
         }
 
         [Test]
-        public void should_not_add_part_label_to_whole_book_releases()
+        public void should_rename_whole_book_releases_as_before()
         {
             var result = Build("{Book Title}/{Book Title}{ (PartNumber:smart)}", File(0, 0));
 

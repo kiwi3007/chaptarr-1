@@ -14,12 +14,12 @@ namespace NzbDrone.Core.MediaFiles.BookImport.Aggregation.Aggregators
     {
         public LocalBook Aggregate(LocalBook localTrack, bool otherFiles)
         {
-            var split = ReleaseSplitPartParser.Parse(localTrack.DownloadClientBookInfo?.ReleaseTitle) ??
-                        ReleaseSplitPartParser.Parse(localTrack.FolderTrackInfo?.ReleaseTitle);
+            var split = ReleasePackDetector.DetectSplitPart(localTrack.DownloadClientBookInfo?.ReleaseTitle) ??
+                        ReleasePackDetector.DetectSplitPart(localTrack.FolderTrackInfo?.ReleaseTitle);
 
             if (split == null && localTrack.Path.IsNotNullOrWhiteSpace())
             {
-                split = ReleaseSplitPartParser.Parse(Path.GetFileNameWithoutExtension(localTrack.Path), fileName: true);
+                split = ReleasePackDetector.DetectSplitPart(Path.GetFileNameWithoutExtension(localTrack.Path), fileName: true);
             }
 
             localTrack.ReleasePart = split?.Part ?? 0;

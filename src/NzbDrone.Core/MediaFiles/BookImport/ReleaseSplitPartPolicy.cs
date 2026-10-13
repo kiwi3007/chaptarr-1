@@ -37,15 +37,15 @@ namespace NzbDrone.Core.MediaFiles.BookImport
                 return new ReleaseSplitPart(bookFile.ReleasePart, bookFile.ReleasePartCount);
             }
 
-            var split = ReleaseSplitPartParser.Parse(bookFile.SceneName);
+            var split = ReleasePackDetector.DetectSplitPart(bookFile.SceneName);
 
             if (split == null && bookFile.OriginalFilePath.IsNotNullOrWhiteSpace())
             {
                 var original = bookFile.OriginalFilePath.Replace('\\', '/');
                 var folder = Path.GetDirectoryName(original)?.Replace('\\', '/');
 
-                split = ReleaseSplitPartParser.Parse(Path.GetFileNameWithoutExtension(original), fileName: true) ??
-                        (folder.IsNotNullOrWhiteSpace() ? ReleaseSplitPartParser.Parse(folder) : null);
+                split = ReleasePackDetector.DetectSplitPart(Path.GetFileNameWithoutExtension(original), fileName: true) ??
+                        (folder.IsNotNullOrWhiteSpace() ? ReleasePackDetector.DetectSplitPart(folder) : null);
             }
 
             return split;
@@ -63,11 +63,13 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         }
 
         /// <summary>
-        /// The split part a release being considered for download belongs to, from its title.
+        /// The split part a release being considered for download belongs to, as found by pack detection.
         /// </summary>
         public static ReleaseSplitPart GetSplitPart(RemoteBook remoteBook)
         {
-            return ReleaseSplitPartParser.Parse(remoteBook?.Release?.Title);
+            return remoteBook?.PackDetection?.Verdict == ReleasePackDetectionVerdict.SingleBookSplitRelease
+                ? remoteBook.PackDetection.SplitPart
+                : null;
         }
 
         /// <summary>

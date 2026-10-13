@@ -3,6 +3,7 @@ using System.Linq;
 using NUnit.Framework;
 using NzbDrone.Core.MediaFiles;
 using NzbDrone.Core.MediaFiles.BookImport;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 
 namespace Chaptarr.Core.Test.MediaFiles.BookImport
@@ -90,7 +91,11 @@ namespace Chaptarr.Core.Test.MediaFiles.BookImport
             Assert.That(ReleaseSplitPartPolicy.ExcludeSiblingParts(existing, new[] { new LocalBook() }), Has.Count.EqualTo(1));
         }
 
-        private static RemoteBook Release(string title) => new RemoteBook { Release = new ReleaseInfo { Title = title } };
+        private static RemoteBook Release(string title) => new RemoteBook
+        {
+            Release = new ReleaseInfo { Title = title },
+            PackDetection = ReleasePackDetector.Detect(title, null, null)
+        };
 
         [Test]
         public void should_not_let_part_one_on_disk_block_grabbing_part_two()
