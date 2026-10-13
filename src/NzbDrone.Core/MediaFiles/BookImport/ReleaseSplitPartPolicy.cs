@@ -73,6 +73,36 @@ namespace NzbDrone.Core.MediaFiles.BookImport
         }
 
         /// <summary>
+        /// The split part of a tracked download, from what was known when it was grabbed: pack
+        /// detection if the grab ran it, otherwise the grabbed release title. The files inside a
+        /// part rarely name it ("001_ACOTAR0101P01.mp3"), so this outranks the files themselves.
+        /// </summary>
+        public static ReleaseSplitPart GetSplitPartOfGrab(RemoteBook remoteBook, string grabbedTitle)
+        {
+            return GetSplitPart(remoteBook) ?? ReleasePackDetector.DetectSplitPart(grabbedTitle);
+        }
+
+        /// <summary>
+        /// Marks files imported from a tracked download with the split part it was grabbed as.
+        /// Leaves them alone when the grab was a whole-book release.
+        /// </summary>
+        public static void ApplySplitPartOfGrab(IEnumerable<LocalBook> localBooks, RemoteBook remoteBook, string grabbedTitle)
+        {
+            var splitPart = GetSplitPartOfGrab(remoteBook, grabbedTitle);
+
+            if (splitPart == null)
+            {
+                return;
+            }
+
+            foreach (var localBook in localBooks.Where(l => l != null))
+            {
+                localBook.ReleasePart = splitPart.Part;
+                localBook.ReleasePartCount = splitPart.Count;
+            }
+        }
+
+        /// <summary>
         /// Files on disk that a release would actually compete with: everything except the other
         /// parts of the same split. Part 1 on disk says nothing about whether Part 2 is wanted.
         /// </summary>

@@ -122,5 +122,50 @@ namespace Chaptarr.Core.Test.MediaFiles.BookImport
             Assert.That(ReleaseSplitPartPolicy.ExcludeSiblingParts(existing, Release("Rebecca Yarros - Onyx Storm")).Count(), Is.EqualTo(1));
             Assert.That(ReleaseSplitPartPolicy.ExcludeSiblingParts(existing, new RemoteBook()).Count(), Is.EqualTo(1));
         }
+
+        [Test]
+        public void should_take_split_part_of_a_tracked_download_from_its_grabbed_title()
+        {
+            // As grabbed from MyAnonaMouse; the download's files are 001_ACOTAR0101P01.mp3 etc.
+            var trackedFromHistory = new RemoteBook { Release = new ReleaseInfo { Title = "A Court of Thorns and Roses (1 of 2)" } };
+
+            Assert.That(ReleaseSplitPartPolicy.GetSplitPartOfGrab(trackedFromHistory, "A Court of Thorns and Roses (1 of 2)"),
+                Is.EqualTo(new ReleaseSplitPart(1, 2)));
+        }
+
+        [Test]
+        public void should_prefer_pack_detection_of_the_grab_when_present()
+        {
+            Assert.That(ReleaseSplitPartPolicy.GetSplitPartOfGrab(Release("A Court of Mist and Fury (2 of 2)"), "ACOMAF"),
+                Is.EqualTo(new ReleaseSplitPart(2, 2)));
+        }
+
+        [Test]
+        public void should_find_no_split_part_for_a_whole_book_grab()
+        {
+            Assert.That(ReleaseSplitPartPolicy.GetSplitPartOfGrab(Release("A Court of Thorns and Roses"), "A Court of Thorns and Roses"), Is.Null);
+            Assert.That(ReleaseSplitPartPolicy.GetSplitPartOfGrab(null, null), Is.Null);
+        }
+
+        [Test]
+        public void should_mark_manually_imported_files_with_the_part_they_were_grabbed_as()
+        {
+            var files = new List<LocalBook> { new LocalBook { Path = "/seeds/ACOTAR 1, 2of 2.m4b" }, null };
+
+            ReleaseSplitPartPolicy.ApplySplitPartOfGrab(files, null, "A Court of Thorns and Roses (2 of 2)");
+
+            Assert.That(files[0].ReleasePart, Is.EqualTo(2));
+            Assert.That(files[0].ReleasePartCount, Is.EqualTo(2));
+        }
+
+        [Test]
+        public void should_leave_files_of_a_whole_book_grab_unmarked()
+        {
+            var file = new LocalBook { Path = "/downloads/book.m4b" };
+
+            ReleaseSplitPartPolicy.ApplySplitPartOfGrab(new[] { file }, null, "A Court of Thorns and Roses");
+
+            Assert.That(file.ReleasePart, Is.EqualTo(0));
+        }
     }
 }

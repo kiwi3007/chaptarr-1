@@ -648,6 +648,11 @@ namespace NzbDrone.Core.MediaFiles
                     ? release.Narrator
                     : !string.IsNullOrWhiteSpace(parsed?.Narrator) ? parsed.Narrator : localBook.Narrator;
             }
+
+            // The grab knows which part of a split release this is ("Fourth Wing (2 of 2)"); the
+            // files inside it rarely say so ("001_ACOTAR0101P01.mp3"), so carry it over with the
+            // rest of the release evidence before import decides what the files may replace.
+            ReleaseSplitPartPolicy.ApplySplitPartOfGrab(decisions?.Select(d => d?.Item) ?? Enumerable.Empty<LocalBook>(), remoteBook, sceneName);
         }
 
         private Book GetBookForMatch(int bookId, IDictionary<int, Book> booksById)
