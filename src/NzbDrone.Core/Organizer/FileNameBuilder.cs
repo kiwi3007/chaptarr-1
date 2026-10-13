@@ -39,6 +39,12 @@ namespace NzbDrone.Core.Organizer
         public static readonly Regex PartRegex = new Regex(@"\{(?<prefix>[^{]*?)(?<token1>PartNumber|PartCount)(?::(?<customFormat1>[a-z0-9]+))?(?<separator>.*(?=PartNumber|PartCount))?((?<token2>PartNumber|PartCount)(?::(?<customFormat2>[a-z0-9]+))?)?(?<suffix>[^}]*)\}",
                                                             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
+        // {ReleasePart} / {ReleasePartCount}: which part of a split release ("Part 2 of 2") a file is
+        // from. Same shape as PartRegex, so free text works: "{ - Part ReleasePart}{ of ReleasePartCount}"
+        // or "{ (Part ReleasePart of ReleasePartCount)}".
+        public static readonly Regex ReleasePartRegex = new Regex(@"\{(?<prefix>[^{]*?)(?<token1>ReleasePartCount|ReleasePart)(?::(?<customFormat1>[a-z0-9]+))?(?<separator>[^{}]*?(?=ReleasePart))?((?<token2>ReleasePartCount|ReleasePart)(?::(?<customFormat2>[a-z0-9]+))?)?(?<suffix>[^}]*)\}",
+                                                                   RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
         public static readonly Regex SeasonEpisodePatternRegex = new Regex(@"(?<separator>(?<=})[- ._]+?)?(?<seasonEpisode>s?{season(?:\:0+)?}(?<episodeSeparator>[- ._]?[ex])(?<episode>{episode(?:\:0+)?}))(?<separator>[- ._]+?(?={))?",
                                                                             RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
@@ -158,6 +164,20 @@ namespace NzbDrone.Core.Organizer
                 components.Count > 0)
             {
                 components[^1] = CleanFileName(originalFileName, namingConfig);
+            }
+            else if (bookFile.ReleasePart > 0 &&
+                     !pattern.Contains("ReleasePart", StringComparison.InvariantCultureIgnoreCase) &&
+                     !pattern.Contains("Original Filename", StringComparison.InvariantCultureIgnoreCase) &&
+                     !pattern.Contains("Original Title", StringComparison.InvariantCultureIgnoreCase) &&
+                     components.Count > 0)
+            {
+                // Each part of a split release ("Part 1 of 2", "Part 2 of 2") is its own download but
+                // names the same book, so without a disambiguator every part maps to one file name
+                // and the second part cannot be imported next to the first.
+                var label = bookFile.ReleasePartCount > 0
+                    ? $"Part {bookFile.ReleasePart} of {bookFile.ReleasePartCount}"
+                    : $"Part {bookFile.ReleasePart}";
+                components[^1] = CleanFileName($"{components[^1]} ({label})", namingConfig);
             }
 
             return Path.Combine(components.ToArray());
@@ -665,6 +685,15 @@ namespace NzbDrone.Core.Organizer
                 tokenHandlers["{PartNumber}"] = m => FormatPartToken(bookFile.Part, bookFile.PartCount, m.CustomFormat);
                 tokenHandlers["{PartCount}"] = m => FormatPartToken(bookFile.PartCount, bookFile.PartCount, m.CustomFormat);
             }
+
+            if (bookFile.ReleasePart > 0)
+            {
+                var releasePartWidth = Math.Max(bookFile.ReleasePart, bookFile.ReleasePartCount);
+                tokenHandlers["{ReleasePart}"] = m => FormatPartToken(bookFile.ReleasePart, releasePartWidth, m.CustomFormat);
+                tokenHandlers["{ReleasePartCount}"] = m => bookFile.ReleasePartCount > 0
+                    ? FormatPartToken(bookFile.ReleasePartCount, releasePartWidth, m.CustomFormat)
+                    : string.Empty;
+            }
         }
 
         private static string FormatPartToken(int value, int partCount, string customFormat)
@@ -814,6 +843,7 @@ namespace NzbDrone.Core.Organizer
 
         private string ReplacePartTokens(string pattern, Dictionary<string, Func<TokenMatch, string>> tokenHandlers, NamingConfig namingConfig)
         {
+            pattern = ReleasePartRegex.Replace(pattern, match => ReplacePartToken(match, tokenHandlers, namingConfig));
             return PartRegex.Replace(pattern, match => ReplacePartToken(match, tokenHandlers, namingConfig));
         }
 
@@ -841,6 +871,11 @@ namespace NzbDrone.Core.Organizer
                 tokenHandler = tokenHandlers.GetValueOrDefault($"{{{match.Groups["token2"].Value}}}", m => string.Empty);
 
                 tokenText2 = tokenHandler(new TokenMatch { CustomFormat = match.Groups["customFormat2"].Success ? match.Groups["customFormat2"].Value : "0" });
+
+                if (tokenText2 == string.Empty)
+                {
+                    separator = string.Empty;
+                }
             }
 
             return $"{prefix}{tokenText1}{separator}{tokenText2}{suffix}";
