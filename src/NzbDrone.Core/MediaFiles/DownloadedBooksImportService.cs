@@ -19,6 +19,7 @@ using NzbDrone.Core.MediaFiles.BookImport.Services;
 using NzbDrone.Core.MediaFiles.Events;
 using NzbDrone.Core.MediaFiles.TagExtraction;
 using NzbDrone.Core.Messaging.Events;
+using NzbDrone.Core.Parser;
 using NzbDrone.Core.Parser.Model;
 using NzbDrone.Core.Qualities;
 using NzbDrone.Core.RootFolders;
@@ -205,6 +206,8 @@ namespace NzbDrone.Core.MediaFiles
                 downloadClientItem == null || allowAutomaticAuthorImport,
                 targetBookIds,
                 allowPathFallback: ShouldAllowTrackedDownloadPathFallback(downloadClientItem, restrictToAuthorId, targetBookIds));
+            var splitPartOfGrab = GetSplitPartOfGrab(remoteBook, downloadClientItem);
+            matchCtx.ReleaseSplitPart = splitPartOfGrab;
             var matchResult = _fileMatchingService.MatchFilesToLibraryAsync(discovered.ToArray(), restrictToAuthorId, matchCtx).GetAwaiter().GetResult();
 
             var decisions = new List<ImportDecision<LocalBook>>();
@@ -282,6 +285,7 @@ namespace NzbDrone.Core.MediaFiles
                         }
 
                         var rematchCtx = CreateStrictMatchingContext(false, null);
+                        rematchCtx.ReleaseSplitPart = splitPartOfGrab;
                         var rematch = _fileMatchingService.MatchFilesToLibraryAsync(discoveredGroup, addedAuthor.Id, rematchCtx)
                             .GetAwaiter().GetResult();
 
@@ -404,6 +408,8 @@ namespace NzbDrone.Core.MediaFiles
             var allowAutomaticAuthorImport = downloadClientItem != null && _configService.AutoAddMissingAuthorsFromCompletedDownloads;
             var matchCtx = MatchingContextPresets.ForDownloaded(downloadClientItem == null || allowAutomaticAuthorImport, targetBookIds, allowPathFallback: true);
             var restrictToAuthorId = ResolveRestrictedAuthorId(author, remoteBook);
+            var splitPartOfGrab = GetSplitPartOfGrab(remoteBook, downloadClientItem);
+            matchCtx.ReleaseSplitPart = splitPartOfGrab;
             var match = _fileMatchingService.MatchFilesToLibraryAsync(discovered, restrictToAuthorId, matchCtx).GetAwaiter().GetResult();
 
             var decisions = new List<ImportDecision<LocalBook>>();
@@ -435,6 +441,7 @@ namespace NzbDrone.Core.MediaFiles
                             if (addedAuthor != null && addedAuthor.Id > 0)
                             {
                                 var rematchCtx = CreateStrictMatchingContext(false, targetBookIds);
+                                rematchCtx.ReleaseSplitPart = splitPartOfGrab;
                                 var rematch = _fileMatchingService.MatchFilesToLibraryAsync(discovered, addedAuthor.Id, rematchCtx)
                                     .GetAwaiter().GetResult();
 
@@ -594,6 +601,16 @@ namespace NzbDrone.Core.MediaFiles
             };
 
             return new ImportDecision<LocalBook>(local);
+        }
+
+        /// <summary>
+        /// The split part ("Part 2 of 3") a tracked download was grabbed as, from the grabbed release title.
+        /// </summary>
+        private static ReleaseSplitPart GetSplitPartOfGrab(RemoteBook remoteBook, DownloadClientItem downloadClientItem)
+        {
+            return downloadClientItem == null
+                ? null
+                : ReleaseSplitPartPolicy.GetSplitPartOfGrab(remoteBook, remoteBook?.Release?.Title ?? downloadClientItem.Title);
         }
 
         private static void ApplyTrackedReleaseEvidence(
